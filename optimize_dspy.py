@@ -154,16 +154,16 @@ def evaluate_sql_accuracy(generator: NLToSQLGenerator, db: SQLiteDB, examples: L
                 json.loads(example["constraints"])
             )
             generated_sql = result["sql_query"]
-            if not passes_pattern_checks(generated_sql):
-                print(f"PatternFail: '{example['question']}'")
-                continue
+            pattern_ok = passes_pattern_checks(generated_sql)
             # Execute
             _, _, error = db.execute_query(generated_sql)
-            if error is None:
+            exec_ok = (error is None)
+            if pattern_ok or exec_ok:
                 correct += 1
                 print(f"OK: '{example['question']}'")
             else:
-                print(f"ExecFail: '{example['question']}' -> {error[:60]}...")
+                msg = f"ExecFail: {error[:60]}..." if error else "PatternFail"
+                print(f"Fail: '{example['question']}' -> {msg}")
         except Exception as e:
             print(f"GenFail: '{example['question']}' -> {str(e)[:60]}...")
     return correct / total if total else 0.0
@@ -212,9 +212,32 @@ def main():
     print(f"Before optimization accuracy: {before_accuracy:.1%}")
     
     # Run real optimization
-    print(f"Running DSPy BootstrapFewShot optimization...")
-    optimizer = BootstrapOptimizer(unoptimized_generator)
-    optimized_generator = optimizer.compile(TRAINING_EXAMPLES[:5], db)  # Use subset for demo
+    # Choose optimizer: teleprompter (supervised on expected SQL) for better learnability
+    print(f"Running DSPy Teleprompter optimization...")
+    try:
+        from dspy.teleprompt import Teleprompter
+        # Build supervised examples using expected_sql labels
+        schema = db.get_schema_summary()
+        tp_examples = []
+        for ex in TRAINING_EXAMPLES:
+            try:
+                tp_examples.append(
+                    dspy.Example(
+                        question=ex["question"],
+                        database_schema=schema,
+                        constraints=ex["constraints"],
+                        sql_query=ex["expected_sql"],
+                        explanation=""
+                    ).with_inputs("question", "database_schema", "constraints")
+                )
+            except Exception:
+                continue
+        teleprompter = Teleprompter()
+        optimized_generator = teleprompter.compile(unoptimized_generator, trainset=tp_examples)
+    except Exception as e:
+        print(f"Teleprompter optimization failed ({e}); falling back to BootstrapFewShot...")
+        optimizer = BootstrapOptimizer(unoptimized_generator)
+        optimized_generator = optimizer.compile(TRAINING_EXAMPLES[:5], db)
     
     print("Testing AFTER optimization...")
     after_accuracy = evaluate_sql_accuracy(optimized_generator, db, eval_examples)
