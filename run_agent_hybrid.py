@@ -98,9 +98,9 @@ def main(batch: str, out: str, db: str, docs: str, verbose: bool):
     
     # Verify real Ollama is working
     if hasattr(lm, 'model') and 'ollama' in str(lm.model):
-        logger.info("✅ Real Ollama model confirmed")
+        logger.info("Ollama model confirmed")
     else:
-        logger.error(f"❌ Wrong LM configured: {lm}")
+        logger.error(f"Wrong LM configured: {lm}")
         raise ValueError("Expected Ollama model but got something else")
     
     # Create the agent
@@ -153,9 +153,9 @@ def main(batch: str, out: str, db: str, docs: str, verbose: bool):
     successful = sum(1 for r in results if r["final_answer"] is not None)
     logger.info(f"Completed: {successful}/{len(questions)} questions successful")
     
-    click.echo(f"✅ Processed {len(questions)} questions")
-    click.echo(f"✅ {successful} successful, {len(questions) - successful} failed")
-    click.echo(f"✅ Results saved to {out}")
+    click.echo(f"Processed {len(questions)} questions")
+    click.echo(f"{successful} successful, {len(questions) - successful} failed")
+    click.echo(f"Results saved to {out}")
 
 
 if __name__ == "__main__":

@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
-DSPy optimization script for NL→SQL module
-Demonstrates before/after improvement for the assignment requirement
+DSPy optimization script for NL→SQL module (real run only)
 """
 import json
 from typing import List, Dict, Any
@@ -64,6 +63,9 @@ TRAINING_EXAMPLES = [
     }
 ]
 
+# Extended NL→SQL dataset for stricter evaluation (loaded from file if present)
+EXT_DATASET_PATH = "data/nl2sql_train.jsonl"
+
 
 class BootstrapOptimizer:
     """Real DSPy BootstrapFewShot optimizer"""
@@ -75,7 +77,7 @@ class BootstrapOptimizer:
     
     def compile(self, examples: List[Dict], db: SQLiteDB):
         """Real optimization using BootstrapFewShot"""
-        print("🔧 Optimizing NL→SQL module using BootstrapFewShot...")
+        print("Optimizing NL→SQL module using BootstrapFewShot...")
         print(f"Training on {len(examples)} examples...")
         
         # Create DSPy examples from our training data
@@ -93,10 +95,10 @@ class BootstrapOptimizer:
                 
                 dspy_examples.append(dspy_example)
             except Exception as e:
-                print(f"⚠️  Skipping example due to error: {e}")
+                print(f"Warning: Skipping example due to error: {e}")
         
         if len(dspy_examples) < 2:
-            print("⚠️  Too few valid examples for optimization, using original module")
+            print("Warning: Too few valid examples for optimization, using original module")
             return self.module
         
         try:
@@ -115,21 +117,35 @@ class BootstrapOptimizer:
             optimizer = BootstrapFewShot(metric=sql_metric, max_bootstrapped_demos=3)
             optimized_module = optimizer.compile(self.module, trainset=dspy_examples[:5])
             
-            print("✅ BootstrapFewShot optimization complete!")
+            print("BootstrapFewShot optimization complete.")
             return optimized_module
             
         except Exception as e:
-            print(f"⚠️  Optimization failed: {e}")
-            print("Using original module as fallback")
+            print(f"Warning: Optimization failed: {e}")
+            print("Using original module as fallback.")
             return self.module
 
 
 def evaluate_sql_accuracy(generator: NLToSQLGenerator, db: SQLiteDB, examples: List[Dict]) -> float:
-    """Evaluate SQL generation accuracy"""
+    """Evaluate SQL generation accuracy with stricter checks."""
     correct = 0
     total = len(examples)
     schema = db.get_schema_summary()
-    
+
+    def passes_pattern_checks(sql: str) -> bool:
+        s = sql.upper()
+        # Must use [Order Details] when referencing order details
+        if 'ORDER DETAILS' in s and '[ORDER DETAILS]' not in s:
+            return False
+        # Disallow non-SQLite functions
+        banned = ['MONTHNAME(', 'YEAR(']
+        if any(b in s for b in banned):
+            return False
+        # No nonexistent tables like Marketing Calendar
+        if 'MARKETING CALENDAR' in s:
+            return False
+        return True
+
     for example in examples:
         try:
             result = generator.forward(
@@ -137,123 +153,83 @@ def evaluate_sql_accuracy(generator: NLToSQLGenerator, db: SQLiteDB, examples: L
                 schema, 
                 json.loads(example["constraints"])
             )
-            
             generated_sql = result["sql_query"]
-            
-            # Test if the generated SQL can execute without errors
+            if not passes_pattern_checks(generated_sql):
+                print(f"PatternFail: '{example['question']}'")
+                continue
+            # Execute
             _, _, error = db.execute_query(generated_sql)
-            
             if error is None:
                 correct += 1
-                print(f"✅ '{example['question']}' -> Valid SQL")
+                print(f"OK: '{example['question']}'")
             else:
-                print(f"❌ '{example['question']}' -> SQL Error: {error[:50]}...")
-                
+                print(f"ExecFail: '{example['question']}' -> {error[:60]}...")
         except Exception as e:
-            print(f"❌ '{example['question']}' -> Generation Error: {str(e)[:50]}...")
-    
-    accuracy = correct / total
-    return accuracy
+            print(f"GenFail: '{example['question']}' -> {str(e)[:60]}...")
+    return correct / total if total else 0.0
 
 
 def main():
     """Run DSPy optimization demonstration"""
-    print("🚀 DSPy NL→SQL Module Optimization\n")
+    print("DSPy NL→SQL Module Optimization")
     
     # Initialize database
     try:
         db = SQLiteDB("data/northwind.sqlite")
-        print("✅ Connected to Northwind database")
+        print("Connected to Northwind database")
     except Exception as e:
-        print(f"❌ Database connection failed: {e}")
+        print(f"Database connection failed: {e}")
         return
     
-    # Initialize dummy LM
-    class SimpleDummyLM(dspy.LM):
-        def __init__(self):
-            super().__init__(model="demo-dummy")
-            
-        def generate(self, prompt, **kwargs):
-            # Simple pattern matching for SQL generation
-            prompt_lower = prompt.lower()
-            if "count" in prompt_lower and "orders" in prompt_lower:
-                return ["SELECT COUNT(*) FROM Orders;"]
-            elif "top" in prompt_lower and "products" in prompt_lower and "revenue" in prompt_lower:
-                return ["SELECT p.ProductName, SUM(od.UnitPrice * od.Quantity * (1-od.Discount)) as revenue FROM Products p JOIN [Order Details] od ON p.ProductID = od.ProductID GROUP BY p.ProductID ORDER BY revenue DESC LIMIT 5;"]
-            elif "customers" in prompt_lower and "germany" in prompt_lower:
-                return ["SELECT CompanyName FROM Customers WHERE Country = 'Germany';"]
-            elif "beverages" in prompt_lower and "revenue" in prompt_lower:
-                return ["SELECT SUM(od.UnitPrice * od.Quantity * (1-od.Discount)) as revenue FROM Categories c JOIN Products p ON c.CategoryID = p.CategoryID JOIN [Order Details] od ON p.ProductID = od.ProductID WHERE c.CategoryName = 'Beverages';"]
-            elif "1997" in prompt_lower and ("orders" in prompt_lower or "count" in prompt_lower):
-                return ["SELECT COUNT(*) FROM Orders WHERE strftime('%Y', OrderDate) = '1997';"]
-            elif "aov" in prompt_lower or "average order value" in prompt_lower:
-                return ["SELECT SUM(od.UnitPrice * od.Quantity * (1-od.Discount)) / COUNT(DISTINCT o.OrderID) as aov FROM Orders o JOIN [Order Details] od ON o.OrderID = od.OrderID WHERE strftime('%Y', o.OrderDate) = '1998';"]
-            elif "dairy products" in prompt_lower:
-                return ["SELECT p.ProductName FROM Products p JOIN Categories c ON p.CategoryID = c.CategoryID WHERE c.CategoryName = 'Dairy Products';"]
-            elif "top customer" in prompt_lower:
-                return ["SELECT c.CompanyName, SUM(od.UnitPrice * od.Quantity * (1-od.Discount)) as total_value FROM Customers c JOIN Orders o ON c.CustomerID = o.CustomerID JOIN [Order Details] od ON o.OrderID = od.OrderID GROUP BY c.CustomerID ORDER BY total_value DESC LIMIT 1;"]
-            elif "products per category" in prompt_lower:
-                return ["SELECT c.CategoryName, COUNT(*) as product_count FROM Categories c JOIN Products p ON c.CategoryID = p.CategoryID GROUP BY c.CategoryID;"]
-            elif "more than 5 items" in prompt_lower:
-                return ["SELECT o.OrderID, SUM(od.Quantity) as total_items FROM Orders o JOIN [Order Details] od ON o.OrderID = od.OrderID GROUP BY o.OrderID HAVING total_items > 5;"]
-            else:
-                # Return a common broken SQL for "before" demonstration
-                return ["SELECT * FROM InvalidTable;"]
-    
     # Configure DSPy with Ollama for optimization demo
-    print("🔧 Configuring Ollama Phi-3.5-mini-instruct...")
+    print("Configuring Ollama Phi-3.5-mini-instruct...")
     try:
         ollama_lm = dspy.LM('ollama/phi3.5:3.8b-mini-instruct-q4_K_M', api_base="http://localhost:11434", api_key="")
         dspy.configure(lm=ollama_lm)
-        print("✅ Ollama LM configured successfully")
+        print("Ollama LM configured successfully")
     except Exception as e:
-        print(f"⚠️  Ollama configuration failed: {e}")
-        print("Using simulated metrics for demonstration")
-        # Simulated metrics for demo
-        before_accuracy = 0.33
-        after_accuracy = 0.67
-        improvement = after_accuracy - before_accuracy
-        print(f"📊 Simulated Results:")
-        print(f"   Before: {before_accuracy:.1%} valid SQL queries")
-        print(f"   After:  {after_accuracy:.1%} valid SQL queries")  
-        print(f"   Improvement: +{improvement:.1%}")
-        print("✅ DSPy optimization demonstrated with simulated metrics!")
-        return
+        raise SystemExit(f"Ollama configuration failed: {e}")
     
     # Create generators
-    print("🧪 Testing BEFORE optimization...")
+    print("Testing BEFORE optimization...")
     unoptimized_generator = NLToSQLGenerator()
     
-    # Measure actual performance before optimization
-    before_accuracy = evaluate_sql_accuracy(unoptimized_generator, db, TRAINING_EXAMPLES[:6])
-    print(f"📊 Before optimization accuracy: {before_accuracy:.1%}")
+    # Load extended dataset if available
+    try:
+        ext = []
+        with open(EXT_DATASET_PATH, 'r') as f:
+            for line in f:
+                if line.strip():
+                    ext.append(json.loads(line))
+        eval_examples = ext
+        print(f"Using extended NL→SQL dataset: {len(eval_examples)} examples")
+    except Exception:
+        eval_examples = TRAINING_EXAMPLES[:10]
+        print(f"Using built-in NL→SQL dataset: {len(eval_examples)} examples")
+
+    # Measure actual performance before optimization (strict metric)
+    before_accuracy = evaluate_sql_accuracy(unoptimized_generator, db, eval_examples)
+    print(f"Before optimization accuracy: {before_accuracy:.1%}")
     
     # Run real optimization
-    print(f"\n🔧 Running DSPy BootstrapFewShot optimization...")
+    print(f"Running DSPy BootstrapFewShot optimization...")
     optimizer = BootstrapOptimizer(unoptimized_generator)
     optimized_generator = optimizer.compile(TRAINING_EXAMPLES[:5], db)  # Use subset for demo
     
-    print("🧪 Testing AFTER optimization...")
-    after_accuracy = evaluate_sql_accuracy(optimized_generator, db, TRAINING_EXAMPLES[:6])
-    print(f"📊 After optimization accuracy: {after_accuracy:.1%}")
+    print("Testing AFTER optimization...")
+    after_accuracy = evaluate_sql_accuracy(optimized_generator, db, eval_examples)
+    print(f"After optimization accuracy: {after_accuracy:.1%}")
     
     # Summary
     improvement = after_accuracy - before_accuracy
-    print(f"\n📈 Optimization Results:")
-    print(f"   Before: {before_accuracy:.1%} valid SQL queries")
-    print(f"   After:  {after_accuracy:.1%} valid SQL queries")  
-    print(f"   Improvement: +{improvement:.1%}")
-    
+    print("Optimization Results:")
+    print(f"  Before: {before_accuracy:.1%} valid SQL queries")
+    print(f"  After:  {after_accuracy:.1%} valid SQL queries")  
+    print(f"  Improvement: +{improvement:.1%}")
     if improvement > 0:
-        print("✅ DSPy optimization successful!")
+        print("DSPy optimization successful.")
     else:
-        print("⚠️  Optimization showed mixed results (normal for small sample)")
-    
-    print(f"\n💡 In a real implementation, this would use:")
-    print("   - BootstrapFewShot or MIPROv2 optimizer")
-    print("   - Larger training set (50+ examples)")
-    print("   - Validation set for proper evaluation")
-    print("   - Multiple optimization rounds")
+        print("Optimization showed mixed results (normal for small sample).")
 
 
 if __name__ == "__main__":

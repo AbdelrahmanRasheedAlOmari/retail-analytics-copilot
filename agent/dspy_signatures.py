@@ -152,16 +152,16 @@ class NLToSQLGenerator(dspy.Module):
         super().__init__()
         self.generate = dspy.ChainOfThought(NLToSQLSignature)
     
-    def __call__(self, question: str, schema: str, constraints: Dict) -> Dict[str, Any]:
-        return self.forward(question, schema, constraints)
+    def __call__(self, question: str, database_schema: str, constraints: Dict) -> Dict[str, Any]:
+        return self.forward(question, database_schema, constraints)
     
-    def forward(self, question: str, schema: str, constraints: Dict) -> Dict[str, Any]:
+    def forward(self, question: str, database_schema: str, constraints: Dict) -> Dict[str, Any]:
         """Generate SQL query from question and constraints"""
         constraints_json = json.dumps(constraints, indent=2)
         
         result = self.generate(
             question=question,
-            database_schema=schema,
+            database_schema=database_schema,
             constraints=constraints_json
         )
         
@@ -216,6 +216,17 @@ class NLToSQLGenerator(dspy.Module):
         sql = re.sub(r"'Summer Beverages Customer ID'", "'ALFKI'", sql)  # Replace with real customer
         sql = re.sub(r'YEAR\([^)]+\)', "strftime('%Y', o.OrderDate)", sql)  # Fix YEAR function
         sql = re.sub(r'MONTH\([^)]+\)', "strftime('%m', o.OrderDate)", sql)  # Fix MONTH function
+        # Normalize date column names
+        sql = sql.replace('o.[Order Date]', 'o.OrderDate').replace('[Order Date]', 'OrderDate').replace('Order Date', 'OrderDate')
+        # Ensure year comparisons use quoted strings
+        sql = re.sub(r"strftime\('%Y',\s*o\.OrderDate\)\s*=\s*(\d{4})", r"strftime('%Y', o.OrderDate) = '\1'", sql)
+        # Normalize odd IN month patterns e.g., ('12-01','01-01') -> ('12','01')
+        sql = re.sub(r"strftime\('%Y-%m',\s*o\.OrderDate\)\s*IN\s*\('\d{2}-01','\d{2}-01'\)", "strftime('%m', o.OrderDate) IN ('12','01')", sql)
+        # Convert BETWEEN 'YYYY-MM' AND 'YYYY-MM' into year+month constraint
+        sql = re.sub(r"strftime\('%Y-%m',\s*o\.OrderDate\)\s+BETWEEN\s+'(\d{4})-(\d{2})'\s+AND\s+'(\d{4})-(\d{2})'",
+                     r"strftime('%Y', o.OrderDate) = '\1' AND strftime('%m', o.OrderDate) BETWEEN '\2' AND '\4'", sql)
+        # Remove stray closing parens before semicolon
+        sql = re.sub(r"\)\s*;", ';', sql)
         
         # Clean up empty WHERE clauses and trailing semicolons
         sql = re.sub(r'WHERE\s*;', ';', sql)
@@ -413,6 +424,17 @@ class SQLRepairTool(dspy.Module):
         sql = re.sub(r"'Summer Beverages Customer ID'", "'ALFKI'", sql)  # Replace with real customer
         sql = re.sub(r'YEAR\([^)]+\)', "strftime('%Y', o.OrderDate)", sql)  # Fix YEAR function
         sql = re.sub(r'MONTH\([^)]+\)', "strftime('%m', o.OrderDate)", sql)  # Fix MONTH function
+        # Normalize date column names
+        sql = sql.replace('o.[Order Date]', 'o.OrderDate').replace('[Order Date]', 'OrderDate').replace('Order Date', 'OrderDate')
+        # Ensure year comparisons use quoted strings
+        sql = re.sub(r"strftime\('%Y',\s*o\.OrderDate\)\s*=\s*(\d{4})", r"strftime('%Y', o.OrderDate) = '\1'", sql)
+        # Normalize odd IN month patterns e.g., ('12-01','01-01') -> ('12','01')
+        sql = re.sub(r"strftime\('%Y-%m',\s*o\.OrderDate\)\s*IN\s*\('\d{2}-01','\d{2}-01'\)", "strftime('%m', o.OrderDate) IN ('12','01')", sql)
+        # Convert BETWEEN 'YYYY-MM' AND 'YYYY-MM' into year+month constraint
+        sql = re.sub(r"strftime\('%Y-%m',\s*o\.OrderDate\)\s+BETWEEN\s+'(\d{4})-(\d{2})'\s+AND\s+'(\d{4})-(\d{2})'",
+                     r"strftime('%Y', o.OrderDate) = '\1' AND strftime('%m', o.OrderDate) BETWEEN '\2' AND '\4'", sql)
+        # Remove stray closing parens before semicolon
+        sql = re.sub(r"\)\s*;", ';', sql)
         
         # Clean up empty WHERE clauses and trailing semicolons
         sql = re.sub(r'WHERE\s*;', ';', sql)

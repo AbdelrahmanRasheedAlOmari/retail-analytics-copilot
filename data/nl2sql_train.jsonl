@@ -1,0 +1,24 @@
+{"question": "Top 3 products by total revenue all-time.", "constraints": "{}", "expects": "revenue_top_products"}
+{"question": "How many orders were placed in 1997?", "constraints": "{\"date_ranges\":[{\"start\":\"1997-01-01\",\"end\":\"1997-12-31\"}]}", "expects": "count_orders_year"}
+{"question": "Average order value (AOV) in 1997 per KPI.", "constraints": "{\"date_ranges\":[{\"start\":\"1997-01-01\",\"end\":\"1997-12-31\"}],\"kpi_formulas\":[\"AOV\"]}", "expects": "aov_year"}
+{"question": "Total revenue for the Beverages category.", "constraints": "{\"categories\":[\"Beverages\"]}", "expects": "revenue_category"}
+{"question": "Number of products per category.", "constraints": "{}", "expects": "products_per_category"}
+{"question": "Orders with more than 5 items.", "constraints": "{}", "expects": "orders_items_gt5"}
+{"question": "Total revenue for Condiments in 1997.", "constraints": "{\"categories\":[\"Condiments\"],\"date_ranges\":[{\"start\":\"1997-01-01\",\"end\":\"1997-12-31\"}]}", "expects": "revenue_category_year"}
+{"question": "Products in the Dairy Products category.", "constraints": "{\"categories\":[\"Dairy Products\"]}", "expects": "products_in_category"}
+{"question": "Top customer by total order value.", "constraints": "{}", "expects": "top_customer_total_value"}
+{"question": "Orders placed in December 1997.", "constraints": "{\"date_ranges\":[{\"start\":\"1997-12-01\",\"end\":\"1997-12-31\"}]}", "expects": "count_orders_month"}
+{"question": "Revenue for Seafood in June 1997.", "constraints": "{\"categories\":[\"Seafood\"],\"date_ranges\":[{\"start\":\"1997-06-01\",\"end\":\"1997-06-30\"}]}", "expects": "revenue_category_month"}
+{"question": "Average order value in Winter Classics 1997.", "constraints": "{\"date_ranges\":[{\"start\":\"1997-12-01\",\"end\":\"1997-12-31\"}],\"kpi_formulas\":[\"AOV\"]}", "expects": "aov_month"}
+{"question": "Total revenue across all orders.", "constraints": "{}", "expects": "revenue_all"}
+{"question": "Count of distinct customers who ordered in 1997.", "constraints": "{\"date_ranges\":[{\"start\":\"1997-01-01\",\"end\":\"1997-12-31\"}]}", "expects": "count_distinct_customers_year"}
+{"question": "Top 5 products by quantity sold.", "constraints": "{}", "expects": "top_products_by_qty"}
+{"question": "Revenue per category in 1997.", "constraints": "{\"date_ranges\":[{\"start\":\"1997-01-01\",\"end\":\"1997-12-31\"}]}", "expects": "revenue_per_category_year"}
+{"question": "Average discount applied in 1997.", "constraints": "{\"date_ranges\":[{\"start\":\"1997-01-01\",\"end\":\"1997-12-31\"}]}", "expects": "avg_discount_year"}
+{"question": "Orders and order value by month in 1997.", "constraints": "{\"date_ranges\":[{\"start\":\"1997-01-01\",\"end\":\"1997-12-31\"}]}", "expects": "orders_value_by_month"}
+{"question": "Top category by revenue in 1997.", "constraints": "{\"date_ranges\":[{\"start\":\"1997-01-01\",\"end\":\"1997-12-31\"}]}", "expects": "top_category_revenue_year"}
+{"question": "Top customer by gross margin in 1997 (COGS=0.7*UnitPrice).", "constraints": "{\"date_ranges\":[{\"start\":\"1997-01-01\",\"end\":\"1997-12-31\"}],\"kpi_formulas\":[\"GM\"]}", "expects": "top_customer_margin_year"}
+{"question": "Customers from Germany who ordered in 1997.", "constraints": "{\"date_ranges\":[{\"start\":\"1997-01-01\",\"end\":\"1997-12-31\"}]}", "expects": "customers_country_year"}
+{"question": "Total freight cost in 1997.", "constraints": "{\"date_ranges\":[{\"start\":\"1997-01-01\",\"end\":\"1997-12-31\"}]}", "expects": "freight_year"}
+{"question": "Average order value per customer in 1997.", "constraints": "{\"date_ranges\":[{\"start\":\"1997-01-01\",\"end\":\"1997-12-31\"}],\"kpi_formulas\":[\"AOV\"]}", "expects": "aov_per_customer_year"}
+{"question": "Revenue per product in June 1997.", "constraints": "{\"date_ranges\":[{\"start\":\"1997-06-01\",\"end\":\"1997-06-30\"}]}", "expects": "revenue_per_product_month"}

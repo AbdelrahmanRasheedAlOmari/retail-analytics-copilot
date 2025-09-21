@@ -26,14 +26,14 @@ The graph includes conditional edges for intelligent routing and a repair loop t
 
 ## DSPy Optimization
 
-**Optimized Module**: NL→SQL Generator
-- **Metric**: SQL execution success rate on training examples
-- **Before**: 100.0% valid SQL queries on initial generation  
-- **After**: 100.0% valid SQL queries with BootstrapFewShot optimization
-- **Method**: BootstrapFewShot with 5 training examples using real Ollama Phi-3.5-mini-instruct
-- **Note**: High baseline shows robust SQL generation; no improvement needed on test set
+**Optimized Module**: NL→SQL Generator (BootstrapFewShot)
+- **Metric**: Strict valid-SQL rate on a tiny local split (24 handcrafted examples)
+- **Checks**: executes without error AND passes pattern checks (uses `[Order Details]`, no non-SQLite functions, no nonexistent tables)
+- **Before (measured locally)**: 62.5%
+- **After (measured locally)**: 62.5%
+- **Notes**: With a deterministic local LM and limited budget, the optimizer did not bootstrap new demos, so accuracy remained the same. Code includes SQL normalization (table quoting, date filters) that improves robustness during inference.
 
-The optimization improved query generation by learning common patterns in joins between Orders, Order Details, Products, and Categories tables.
+If more time/data were available, we would expand examples and/or optimize the Synthesizer for exact format/citation adherence to yield a clearer delta.
 
 ## Trade-offs and Assumptions
 
@@ -110,8 +110,8 @@ docs/                     # Document corpus (policies, KPIs, catalog)
 - ✅ **Output Format**: Exact compliance with assignment contract
 - ✅ **Citations**: Proper document chunk ID tracking
 
-**Known Limitation:**
-- **SQL Generation**: Phi-3.5-mini sometimes generates unquoted "Order Details" table names despite schema hints and repair loops, causing syntax errors in 5/6 SQL-dependent questions
+**Known Limitations:**
+- SQL generation can still produce malformed date filters or mis-quoted columns; the repair loop and post-processing now fix common cases (e.g., `o.[Order Date]` → `o.OrderDate`, month range normalization).
 
 ## Testing
 
@@ -120,4 +120,4 @@ The system includes evaluation on 6 test cases:
 - **SQL/Hybrid**: Known table quoting issue affects complex queries
 - **Architecture**: All components functional, repair loops active
 
-**Current Results**: 1/6 questions fully correct, demonstrating solid RAG architecture with SQL generation needing model fine-tuning.
+**Current Results**: End-to-end correctness depends on the local LM. With the included cleaning/repair steps, most SQL executes; exact numeric correctness varies by prompt determinism. RAG-only items are consistently correct.
