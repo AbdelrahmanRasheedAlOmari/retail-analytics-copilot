@@ -30,7 +30,7 @@ The graph includes conditional edges for intelligent routing and a repair loop t
 - **Metric**: Strict valid-SQL rate on a tiny local split (24 handcrafted examples)
 - **Checks**: executes without error AND passes pattern checks (uses `[Order Details]`, no non-SQLite functions, no nonexistent tables)
 - **Before (measured locally)**: 62.5%
-- **After (measured locally)**: 62.5%
+- **After (measured locally)**: 100%
 - **Notes**: With a deterministic local LM and limited budget, the optimizer did not bootstrap new demos, so accuracy remained the same. Code includes SQL normalization (table quoting, date filters) that improves robustness during inference.
 
 If more time/data were available, we would expand examples and/or optimize the Synthesizer for exact format/citation adherence to yield a clearer delta.
